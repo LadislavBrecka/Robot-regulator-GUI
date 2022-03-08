@@ -72,3 +72,8 @@ HEADERS  += \
 
 FORMS    += \
     mainwindow.ui
+
+DISTFILES += \
+    README.md \
+    images/gui.png \
+    images/simulator.png

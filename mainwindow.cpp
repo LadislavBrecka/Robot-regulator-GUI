@@ -5,7 +5,6 @@
 #include <cstdlib>
 
 
-
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     //tu je napevno nastavena ip. treba zmenit na to co ste si zadali do text boxu alebo nejaku inu pevnu. co bude spravna
@@ -536,7 +535,7 @@ void MainWindow::PrintTargetQueue()
     if (!targets.empty())
     {
         for (auto v : targets)
-                message += "X: " + std::to_string(v.x) + ", Y:" + std::to_string(v.y) + "  ----  ";
+                message += " --  X: " + std::to_string(v.x) + ", Y:" + std::to_string(v.y) + " --  ";
     }
 
     ui->textEdit->setText(message.c_str());
