@@ -16,6 +16,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     useCamera=false;
 
     datacounter=0;
+
+    P_distance = 1200.0f;
+    P_angle = 5.0f;
+    speedDifferenceLimit = 100.0f;
+
+    prevRotSpeed = rotSpeed = 0.0f;
+    prevTransSpeed = transSpeed = 0.0f;
 }
 
 MainWindow::~MainWindow()
@@ -211,8 +218,16 @@ void MainWindow::processThisRobot()
 
         if (!fifoTargets.GetPoints().empty() && navigate)
         {
-            RegulatorRotation();
-            RegulatorTranslation();
+            // first in, first out -> get me first element in queue
+            Point target = fifoTargets.Out();
+            Point actual(x, y);
+            auto targetOffset = GetTargetOffset(actual, target);
+            // regulacia rotacie
+            RegulatorRotation(targetOffset.second);
+            // ak prave neotacame, regulujeme doprednu rychlost
+            RegulatorTranslation(targetOffset.first, targetOffset.second);
+            // vyhodnotenie, ci splname poziadavky polohy
+            EvaluateRegulation(targetOffset.first, targetOffset.second);
         }
     }
 
@@ -423,66 +438,82 @@ std::pair<double, double> MainWindow::GetTargetOffset(Point actual, Point target
         thetaOffset = f_k - alfa;
         if (thetaOffset <= PI)
         {
-            thetaOffset = 2*PI - thetaOffset;
             thetaOffset *= (-1);
+        }
+        else if (thetaOffset > PI)
+        {
+            thetaOffset = 2*PI - thetaOffset;
         }
     }
 
-    std::cout << "dX: " << dx << ", dY: " << dy << ", ";
-    std::cout << "Distance: " << distance << ", Theta: " << RadToDegree(thetaOffset) << ", Alfa: " << RadToDegree(alfa) << std::endl;
+//    s/*td::cout << "dx: " << dx << ", dx: " << dy << ", fk: " << RadToDegree(f_k) << ", ";
+//    st*/d::cout << "Distance: " << distance << ", Theta: " << RadToDegree(thetaOffset) << ", Alfa: " << RadToDegree(alfa) << std::endl;
     return std::pair<double, double>(distance, thetaOffset);
 }
 
-void MainWindow::RegulatorRotation()
+void MainWindow::RegulatorRotation(double dTheta)
 {
-    // first in, first out -> get me first element in queue
-    Point target = fifoTargets.Out();
-    Point actual(x, y);
-
-    if (target.isValid())
+    // ak je uhol vacsi ako mrtve pasmo pa2, regulator reguluje uhol natocenia
+    if (fabs(dTheta) > pa2)
     {
-        auto targetOffset = GetTargetOffset(actual, target);
-        float dTheta = targetOffset.second;
-
-        if (fabs(dTheta) > pa2)
-        {
-            rotationDir = dTheta > 0.0f ? 1 : -1;
-            RobotSetRotationSpeed(rotationDir*(PI/4));
-        }
-        else if (fabs(dTheta) < pa1)
-        {
-           RobotSetRotationSpeed(0);
-        }
+        // P Regulator s rampou
+        float idealSpeed = P_angle * dTheta;
+        if (idealSpeed > prevRotSpeed + speedDifferenceLimit)
+            rotSpeed += speedDifferenceLimit;
+        else
+            rotSpeed = idealSpeed;
     }
+
+    // ak je uhol mansie ako vnutorne mrtve pasmo pa1, ukoncujeme regulaciu uhla natocenia
+    else if (fabs(dTheta) < pa1)
+    {
+       rotSpeed = 0.0f;
+    }
+
+    std::cout << "RotSpeed: " << rotSpeed;
+    RobotSetRotationSpeed(rotSpeed);
+    prevRotSpeed = rotSpeed;
 }
 
-void MainWindow::RegulatorTranslation()
+void MainWindow::RegulatorTranslation(double distance, double dTheta)
 {
-    // first in, first out -> get me first element in queue
-    Point target = fifoTargets.Out();
-    Point actual(x, y);
-
-    if (target.isValid())
+    // ak je robot spravne natoceny a neprebieha rotacia, regulator reguluje doprednu rychlost
+    if (distance > pd && abs(dTheta) <= pa2)
     {
-        auto targetOffset = GetTargetOffset(actual, target);
-        float distance = targetOffset.first;
-        float dTheta = targetOffset.second;
+        float idealSpeed = P_distance * distance;
 
-        if (distance > pd && abs(dTheta) <= pa2)
-        {
-            RobotSetTranslationSpeed(100);
-        }
+        if (idealSpeed > prevTransSpeed + speedDifferenceLimit)
+            transSpeed += speedDifferenceLimit;
+        else
+            transSpeed = idealSpeed;
 
-        if (distance <= pd)
-        {
-            // dosiahnutie ciela
-            RobotSetTranslationSpeed(0);
-            std::cout << std::endl << "Poping element!" << std::endl << std::endl;
-            fifoTargets.Pop();
+        std::cout << ", TranslationSpeed: " << transSpeed <<std::endl;
+        RobotSetTranslationSpeed(transSpeed);
+    }
 
-            if (fifoTargets.GetPoints().empty())
-                navigate = false;
-        }
+    prevTransSpeed = transSpeed;
+}
+
+void MainWindow::EvaluateRegulation(double distance, double theta)
+{
+    if (distance <= pd)
+    {
+        // dosiahnutie ciela
+        transSpeed = 0.0f;
+        rotSpeed   = 0.0f;
+
+        // tato funkcia nastavi 0 rychlost na obe kolesa
+        RobotSetTranslationSpeed(transSpeed);
+
+        // vymazanie bodu zo zasobnika
+        std::cout << std::endl << "Poping element!" << std::endl << std::endl;
+        fifoTargets.Pop();
+
+        if (fifoTargets.GetPoints().empty())
+            navigate = false;
+
+        prevTransSpeed = transSpeed;
+        prevRotSpeed   = rotSpeed;
     }
 }
 

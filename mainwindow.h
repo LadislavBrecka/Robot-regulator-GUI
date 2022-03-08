@@ -149,8 +149,9 @@ private slots:
     // robot control functions
     void RobotSetTranslationSpeed(float speed);
     void RobotSetRotationSpeed(float speed);
-    void RegulatorRotation();
-    void RegulatorTranslation();
+    void RegulatorRotation(double dTheta);
+    void RegulatorTranslation(double distance, double dTheta);
+    void EvaluateRegulation(double distance, double dTheta);
 
     // qt realted functions
     void getNewFrame();
@@ -194,7 +195,6 @@ private:
      // dead zone pre porovnanie s nulou
      double epsilon;
      // mrtve pasmo pre distane
-     double distance;
      double pd;
 
      // fifo queue pre target pozicie;
@@ -202,6 +202,14 @@ private:
 
      bool rotationLock;
      int rotationDir;
+
+     float P_distance;
+     float P_angle;
+
+     float prevRotSpeed, rotSpeed;
+     float prevTransSpeed, transSpeed;
+
+     float speedDifferenceLimit;
 
 public slots:
      void setUiValues(double robotX,double robotY,double robotFi);
