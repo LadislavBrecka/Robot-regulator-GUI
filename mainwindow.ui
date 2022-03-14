@@ -172,7 +172,7 @@
          </size>
         </property>
         <property name="text">
-         <string>Reset robot</string>
+         <string>Print Map</string>
         </property>
        </widget>
       </item>

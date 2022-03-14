@@ -16,9 +16,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     datacounter=0;
 
-    P_distance = 1200.0f;
-    P_angle = 5.0f;
-    speedDifferenceLimit = 100.0f;
+    P_distance = 500.0f;
+    P_angle = 2.5f;
+    speedDifferenceLimit = 50.0f;
+    speedLimit = 400.0f;
 
     prevRotSpeed = rotSpeed = 0.0f;
     prevTransSpeed = transSpeed = 0.0f;
@@ -41,11 +42,7 @@ void MainWindow::on_pushButton_3_clicked() //back
 
 void MainWindow::on_pushButton_4_clicked() //stop
 {
-    std::vector<unsigned char> mess=robot.setTranslationSpeed(0);
-    if (sendto(rob_s, (char*)mess.data(), sizeof(char)*mess.size(), 0, (struct sockaddr*) &rob_si_posli, rob_slen) == -1)
-    {
-
-    }
+    RobotSetTranslationSpeed(0);
 }
 
 void MainWindow::on_pushButton_5_clicked()//right
@@ -64,6 +61,11 @@ void MainWindow::on_pushButton_7_clicked() // start navigate
         navigate = !navigate;
     else
         std::cout << "No points in queue" << std::endl;
+}
+
+void MainWindow::on_pushButton_8_clicked()
+{
+    map.printMapToConsole();
 }
 
 void MainWindow::on_pushButton_9_clicked() //start button
@@ -215,6 +217,7 @@ void MainWindow::processThisRobot()
         x_prev = x;
         y_prev = y;
 
+        // PID REGULATION
         if (!fifoTargets.GetPoints().empty() && navigate)
         {
             // first in, first out -> get me first element in queue
@@ -228,8 +231,33 @@ void MainWindow::processThisRobot()
             // vyhodnotenie, ci splname poziadavky polohy
             EvaluateRegulation(targetOffset.first, targetOffset.second);
         }
-    }
 
+        // CREATING MAP
+        if (!isRotating)
+        {
+            for(int k=0;k<copyOfLaserData.numberOfScans/*360*/;k++)
+            {
+                double dist  = copyOfLaserData.Data[k].scanDistance;
+
+                if (dist > 150.0f)
+                {
+                    double angle = copyOfLaserData.Data[k].scanAngle;
+
+                    double angle_sum = f_k + DegreeToRad(360.0f - angle);
+
+                    if (angle_sum >= 2*PI)
+                        angle_sum -= 2*PI;
+                    else if (angle_sum < 0.0f)
+                        angle_sum += 2*PI;
+
+                    double x_lidar = x + (dist / 1000.0f) * cos(angle_sum);
+                    double y_lidar = y + (dist / 1000.0f) * sin(angle_sum);
+
+                    map.fillSquare(Point(x_lidar, y_lidar));
+                }
+            }
+        }
+    }
     datacounter++;
 }
 
@@ -362,6 +390,7 @@ void MainWindow::getNewFrame()
 
 void MainWindow::RobotSetTranslationSpeed(float speed)
 {
+    isRotating = false;
     //pohyb dopredu
     std::vector<unsigned char> mess=robot.setTranslationSpeed(speed);
     if (sendto(rob_s, (char*)mess.data(), sizeof(char)*mess.size(), 0, (struct sockaddr*) &rob_si_posli, rob_slen) == -1)
@@ -372,6 +401,9 @@ void MainWindow::RobotSetTranslationSpeed(float speed)
 
 void MainWindow::RobotSetRotationSpeed(float speed)
 {
+    if (speed != 0.0)
+        isRotating = true;
+
     std::vector<unsigned char> mess=robot.setRotationSpeed(speed);
     if (sendto(rob_s, (char*)mess.data(), sizeof(char)*mess.size(), 0, (struct sockaddr*) &rob_si_posli, rob_slen) == -1)
     {
@@ -469,7 +501,10 @@ void MainWindow::RegulatorRotation(double dTheta)
        rotSpeed = 0.0f;
     }
 
-    std::cout << "RotSpeed: " << rotSpeed;
+    if (rotSpeed > speedLimit)
+        rotSpeed = speedLimit;
+
+    std::cout << "RotSpeed: " << rotSpeed << std::endl;
     RobotSetRotationSpeed(rotSpeed);
     prevRotSpeed = rotSpeed;
 }
@@ -486,7 +521,10 @@ void MainWindow::RegulatorTranslation(double distance, double dTheta)
         else
             transSpeed = idealSpeed;
 
-        std::cout << ", TranslationSpeed: " << transSpeed <<std::endl;
+        if (transSpeed > speedLimit)
+            transSpeed = speedLimit;
+
+        std::cout << "TranslationSpeed: " << transSpeed <<std::endl;
         RobotSetTranslationSpeed(transSpeed);
     }
 
@@ -540,4 +578,3 @@ void MainWindow::PrintTargetQueue()
 
     ui->textEdit->setText(message.c_str());
 }
-
