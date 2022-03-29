@@ -18,8 +18,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     P_distance = 500.0f;
     P_angle = 2.5f;
-    speedDifferenceLimit = 50.0f;
-    speedLimit = 400.0f;
+    speedDifferenceLimit = MAX_START_SPEED;
+    speedLimit = MAX_SPEED_LIMIT;
 
     prevRotSpeed = rotSpeed = 0.0f;
     prevTransSpeed = transSpeed = 0.0f;
@@ -66,6 +66,7 @@ void MainWindow::on_pushButton_7_clicked() // start navigate
 void MainWindow::on_pushButton_8_clicked()
 {
     map.printMapToConsole();
+    map.printMapToFile();
 }
 
 void MainWindow::on_pushButton_9_clicked() //start button
@@ -83,6 +84,10 @@ void MainWindow::on_pushButton_10_clicked()
     QString xString = ui->lineEdit_5->text();
     QString yString = ui->lineEdit_6->text();
     Point desirePoint = {xString.toFloat(), yString.toFloat()};
+
+    // kontrola prekazok
+    Point actual(x,y);
+
     fifoTargets.In(desirePoint);
 }
 
@@ -158,8 +163,8 @@ void MainWindow::processThisRobot()
         total_l = 0.0f;
         total_r = 0.0f;
 
-        pa1 = 0.05;
-        pa2 = 0.2;
+        pa1 = 0.03;
+        pa2 = 0.12;
         pd = 0.05f;
 
         rotationLock = false;
@@ -184,80 +189,81 @@ void MainWindow::processThisRobot()
     else if (enc_l_diff > 60000)
         enc_l_diff = enc_l_diff - 65535;
 
-    if(datacounter%5)
+    // pridavok vzdialenosti oboch kolies
+    l_r = robot.tickToMeter * (enc_r_diff);
+    l_l = robot.tickToMeter * (enc_l_diff);
+
+    // celkova prejdena vzdialenost oboch kolies
+    total_r += abs(l_r);
+    total_l += abs(l_l);
+
+    // vzdialenost l_k a uhol f_k
+    l_k = (l_r + l_l) / 2;
+    d_alfa = (l_r - l_l) / robot.b;
+    f_k = f_k_prev + d_alfa;
+
+    // pretecenie uhla
+    if (f_k > 2*PI)
+        f_k -= 2*PI;
+    else if (f_k < 0.0f)
+        f_k += 2*PI;
+
+    // suradnice x a y
+    x = x_prev + l_k * cos(f_k);
+    y = y_prev + l_k * sin(f_k);
+
+    // vypis do GUI
+    emit uiValuesChanged(x, y, (int)(RadToDegree(f_k)));
+
+    // ulozenie aktualnych do predoslych
+    enc_l_prev = robotdata.EncoderLeft;
+    enc_r_prev = robotdata.EncoderRight;
+    f_k_prev = f_k;
+    x_prev = x;
+    y_prev = y;
+
+    // REGULATION
+    if (!fifoTargets.GetPoints().empty() && (navigate || map_mode))
     {
-        // pridavok vzdialenosti oboch kolies
-        l_r = robot.tickToMeter * (enc_r_diff) * 1.0;
-        l_l = robot.tickToMeter * (enc_l_diff) * 1.0;
+        // first in, first out -> dat mi prvy element zo zasobnika
+        Point target = fifoTargets.Out();
+        Point actual(x, y);
+        // ziskanie chyby polohy
+        auto targetOffset = GetTargetOffset(actual, target);
+        // regulacia rotacie
+        RegulatorRotation(targetOffset.second);
+        // ak nerotujeme, regulujeme doprednu rychlost
+        RegulatorTranslation(targetOffset.first, targetOffset.second);
+        // vyhodnotenie, ci splname poziadavky polohy
+        EvaluateRegulation(targetOffset.first, targetOffset.second);
+    }
 
-        // celkova prejdena vzdialenost oboch kolies
-        total_r += abs(l_r);
-        total_l += abs(l_l);
-
-        // vzdialenost l_k a uhol f_k
-        l_k = (l_r + l_l) / 2;
-        d_alfa = (l_r - l_l) / robot.b;
-        f_k = f_k_prev + d_alfa;
-
-        if (f_k > 2*PI)
-            f_k -= 2*PI;
-
-        else if (f_k < 0.0f)
-            f_k += 2*PI;
-
-        // suradnice x a y
-        x = x_prev + l_k * cos(f_k);
-        y = y_prev + l_k * sin(f_k);
-
-        emit uiValuesChanged(x, y, (int)(RadToDegree(f_k)));
-
-        enc_l_prev = robotdata.EncoderLeft;
-        enc_r_prev = robotdata.EncoderRight;
-        f_k_prev = f_k;
-        x_prev = x;
-        y_prev = y;
-
-        // PID REGULATION
-        if (!fifoTargets.GetPoints().empty() && navigate)
+    // CREATING MAP
+    if (!isRotating && map_mode)
+    {
+        for(int k=0;k<copyOfLaserData.numberOfScans/*360*/;k++)
         {
-            // first in, first out -> get me first element in queue
-            Point target = fifoTargets.Out();
-            Point actual(x, y);
-            auto targetOffset = GetTargetOffset(actual, target);
-            // regulacia rotacie
-            RegulatorRotation(targetOffset.second);
-            // ak prave neotacame, regulujeme doprednu rychlost
-            RegulatorTranslation(targetOffset.first, targetOffset.second);
-            // vyhodnotenie, ci splname poziadavky polohy
-            EvaluateRegulation(targetOffset.first, targetOffset.second);
-        }
+            double dist  = copyOfLaserData.Data[k].scanDistance;
 
-        // CREATING MAP
-        if (!isRotating)
-        {
-            for(int k=0;k<copyOfLaserData.numberOfScans/*360*/;k++)
+            if (dist > 150.0f && dist < 1500.0f)
             {
-                double dist  = copyOfLaserData.Data[k].scanDistance;
+                double angle = copyOfLaserData.Data[k].scanAngle;
 
-                if (dist > 150.0f)
-                {
-                    double angle = copyOfLaserData.Data[k].scanAngle;
+                double angle_sum = f_k + DegreeToRad(360.0f - angle);
 
-                    double angle_sum = f_k + DegreeToRad(360.0f - angle);
+                if (angle_sum >= 2*PI)
+                    angle_sum -= 2*PI;
+                else if (angle_sum < 0.0f)
+                    angle_sum += 2*PI;
 
-                    if (angle_sum >= 2*PI)
-                        angle_sum -= 2*PI;
-                    else if (angle_sum < 0.0f)
-                        angle_sum += 2*PI;
+                double x_lidar = x + (dist / 1000.0f) * cos(angle_sum);
+                double y_lidar = y + (dist / 1000.0f) * sin(angle_sum);
 
-                    double x_lidar = x + (dist / 1000.0f) * cos(angle_sum);
-                    double y_lidar = y + (dist / 1000.0f) * sin(angle_sum);
-
-                    map.fillSquare(Point(x_lidar, y_lidar));
-                }
+                map.fillSquare(Point(x_lidar, y_lidar));
             }
         }
     }
+
     datacounter++;
 }
 
@@ -477,9 +483,7 @@ std::pair<double, double> MainWindow::GetTargetOffset(Point actual, Point target
         }
     }
 
-//    s/*td::cout << "dx: " << dx << ", dx: " << dy << ", fk: " << RadToDegree(f_k) << ", ";
-//    st*/d::cout << "Distance: " << distance << ", Theta: " << RadToDegree(thetaOffset) << ", Alfa: " << RadToDegree(alfa) << std::endl;
-    return std::pair<double, double>(distance, thetaOffset);
+   return std::pair<double, double>(distance, thetaOffset);
 }
 
 void MainWindow::RegulatorRotation(double dTheta)
@@ -504,7 +508,6 @@ void MainWindow::RegulatorRotation(double dTheta)
     if (rotSpeed > speedLimit)
         rotSpeed = speedLimit;
 
-    std::cout << "RotSpeed: " << rotSpeed << std::endl;
     RobotSetRotationSpeed(rotSpeed);
     prevRotSpeed = rotSpeed;
 }
@@ -524,7 +527,6 @@ void MainWindow::RegulatorTranslation(double distance, double dTheta)
         if (transSpeed > speedLimit)
             transSpeed = speedLimit;
 
-        std::cout << "TranslationSpeed: " << transSpeed <<std::endl;
         RobotSetTranslationSpeed(transSpeed);
     }
 
@@ -543,11 +545,22 @@ void MainWindow::EvaluateRegulation(double distance, double theta)
         RobotSetTranslationSpeed(transSpeed);
 
         // vymazanie bodu zo zasobnika
-        std::cout << std::endl << "Poping element!" << std::endl << std::endl;
+        if (!map_mode)
+            std::cout << std::endl << "Poping element!" << std::endl << std::endl;
         fifoTargets.Pop();
 
-        if (fifoTargets.GetPoints().empty())
+        if (fifoTargets.GetPoints().empty() && !map_mode)
             navigate = false;
+
+        if (fifoTargets.GetPoints().empty() && map_mode)
+        {
+            map_mode = false;
+            speedLimit = MAX_SPEED_LIMIT;
+            speedDifferenceLimit = MAX_START_SPEED;
+            map.printMapToConsole();
+            map.printMapToFile();
+
+        }
 
         prevTransSpeed = transSpeed;
         prevRotSpeed   = rotSpeed;
@@ -578,3 +591,27 @@ void MainWindow::PrintTargetQueue()
 
     ui->textEdit->setText(message.c_str());
 }
+
+void MainWindow::on_pushButton_clicked()
+{
+    mapping();
+
+}
+
+void MainWindow::mapping()
+{
+    speedLimit = 150.0f;
+    speedDifferenceLimit = 25.0;
+    map_mode = true;
+    fifoTargets.In(Point(1, 0.0));
+    fifoTargets.In(Point(0, 0.5));
+    fifoTargets.In(Point(0, 3.0));
+    fifoTargets.In(Point(2.8, 3));
+    fifoTargets.In(Point(2.8, 3.8));
+    fifoTargets.In(Point(4, 3.8));
+    fifoTargets.In(Point(2.8, 3.8));
+    fifoTargets.In(Point(2.8, 0));
+    fifoTargets.In(Point(4.5, 0.0));
+    fifoTargets.In(Point(4.5, 2.0));
+}
+

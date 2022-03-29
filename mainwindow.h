@@ -3,6 +3,8 @@
 
 #include <QMainWindow>
 #include <QTimer>
+#include <QFile>
+#include <QTextStream>
 #include<windows.h>
 #include<iostream>
 //#include<arpa/inet.h>
@@ -22,6 +24,9 @@
 #include "opencv2/core/utility.hpp"
 #include "opencv2/videoio.hpp"
 #include "opencv2/imgcodecs.hpp"*/
+
+#define MAX_SPEED_LIMIT 400
+#define MAX_START_SPEED 50
 
 struct Point {
     float x;
@@ -89,13 +94,13 @@ public:
     }
 };
 
-#define MAP_WIDTH 96
-#define MAP_HEIGHT 96
-#define MAP_STEP 8
+#define MAP_WIDTH 120
+#define MAP_HEIGHT 120
+#define MAP_STEP 10
 
 class Map
 {
-private:
+public:
    int map[MAP_WIDTH][MAP_HEIGHT];
 
 public:
@@ -109,61 +114,58 @@ public:
             }
         }
 
-        map[MAP_WIDTH/2][MAP_HEIGHT/2] = 5;
+        map[MAP_WIDTH/2][MAP_HEIGHT/2] = -1;
     }
 
     void fillSquare(Point lidar)
     {
-        int x = int(lidar.x * MAP_STEP + MAP_WIDTH  / 2);
-        int y = MAP_HEIGHT - int(lidar.y * MAP_STEP + MAP_HEIGHT / 2);
+        int x = round(lidar.x * MAP_STEP + MAP_WIDTH  / 2);
+        int y = MAP_HEIGHT - round(lidar.y * MAP_STEP + MAP_HEIGHT / 2);
         map[y][x] = 1;
     }
 
     void printMapToConsole()
     {
-        // drawing colored strings
-        #ifdef _WIN32
-        SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-        #endif
+//         drawing colored strings
+//        #ifdef _WIN32
+//        SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+//        #endif
 
         for (int i = 0; i < MAP_HEIGHT; ++i)
         {
             for (int j = 0; j < MAP_WIDTH; ++j)
             {
                 if (map[i][j] == 1)
-                    std::cout << "\033[32m" << map[i][j] << ' ' << "\033[0m";
+                    std::cout << "*" << ' ';
+//                    std::cout << "\033[32m" << map[i][j] << ' ' << "\033[0m";
                 else
-                    std::cout << map[i][j] << ' ';
+                    std::cout << " " << ' ';
+//                    std::cout << map[i][j] << ' ';
             }
             std::cout << std::endl;
         }
         std::cout << std::endl;
     }
 
-    template<typename T, int height, int width>
-    std::ostream& writemap(std::ostream& os, T (&map)[height][width])
-    {
-        for (int i = 0; i < height; ++i)
-        {
-            for (int j = 0; j < width; ++j)
-            {
-                os << map[i][j]<<" ";
-            }
-            os<<"\n";
-        }
-        return os;
-    }
-
     void printMapToFile()
     {
-        std::fstream of("C:\\Map.txt", std::ios::out | std::ios::app);
+        QFile file("map.txt");
+        file.open(QIODevice::WriteOnly | QIODevice::Text);
+        QTextStream out(&file);
 
-        if (of.is_open())
+        for (int i = 0; i < MAP_HEIGHT; ++i)
         {
-            writemap(of, map);
-            writemap(std::cout, map);
-            of.close();
+            for (int j = 0; j < MAP_WIDTH; ++j)
+            {
+                if (map[i][j] == 1)
+                    out << "*" << ' ';
+                else
+                    out << " " << ' ';
+            }
+            out << "\n";
         }
+
+        file.close();
     }
 
 };
@@ -222,6 +224,7 @@ private slots:
     double RadToDegree(double radians);
     double DegreeToRad(double degrees);
     void   PrintTargetQueue();
+    void mapping();
 
     // robot control functions
     void RobotSetTranslationSpeed(float speed);
@@ -244,6 +247,8 @@ private slots:
 
     void on_pushButton_8_clicked();
 
+    void on_pushButton_clicked();
+
 private:
 
      JOYINFO joystickInfo;
@@ -262,6 +267,7 @@ private:
      // switche
      bool initParam = true;
      bool navigate = false;
+     bool map_mode = false;
      bool isRotating = false;
 
      // lokalizacia - stavove premenne
