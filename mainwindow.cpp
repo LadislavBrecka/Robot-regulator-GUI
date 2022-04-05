@@ -65,8 +65,7 @@ void MainWindow::on_pushButton_7_clicked() // start navigate
 
 void MainWindow::on_pushButton_8_clicked()
 {
-    map.printMapToConsole();
-    map.printMapToFile();
+
 }
 
 void MainWindow::on_pushButton_9_clicked() //start button
@@ -85,16 +84,42 @@ void MainWindow::on_pushButton_10_clicked()
     QString yString = ui->lineEdit_6->text();
     Point desirePoint = {xString.toFloat(), yString.toFloat()};
 
-    // kontrola prekazok
-    Point actual(x,y);
+    // mapping mode
+    if (maping_nav)
+    {
+        map.loadFromFile("map.txt");
+        map.floodFillDistances(desirePoint);
 
-    fifoTargets.In(desirePoint);
+        map.saveToFileRaw();
+    }
+    else
+    {
+        fifoTargets.In(desirePoint);
+    }
+
 }
 
-// show queue
 void MainWindow::on_pushButton_11_clicked()
 {
-    PrintTargetQueue();
+    map.loadFromFile("map.txt");
+    for (int i = 0; i < MAP_HEIGHT; ++i)
+    {
+        for (int j = 0; j < MAP_WIDTH; ++j)
+        {
+
+        }
+    }
+
+}
+
+void MainWindow::on_pushButton_clicked()
+{
+    mapping();
+}
+
+void MainWindow::on_checkBox_clicked(bool checked)
+{
+    maping_nav = checked;
 }
 
 void MainWindow::paintEvent(QPaintEvent *event)
@@ -259,10 +284,13 @@ void MainWindow::processThisRobot()
                 double x_lidar = x + (dist / 1000.0f) * cos(angle_sum);
                 double y_lidar = y + (dist / 1000.0f) * sin(angle_sum);
 
-                map.fillSquare(Point(x_lidar, y_lidar));
+                map.setWall(Point(x_lidar, y_lidar));
             }
         }
     }
+
+    // FILLING MAP
+
 
     datacounter++;
 }
@@ -557,9 +585,7 @@ void MainWindow::EvaluateRegulation(double distance, double theta)
             map_mode = false;
             speedLimit = MAX_SPEED_LIMIT;
             speedDifferenceLimit = MAX_START_SPEED;
-            map.printMapToConsole();
-            map.printMapToFile();
-
+            map.saveToFile();
         }
 
         prevTransSpeed = transSpeed;
@@ -592,12 +618,6 @@ void MainWindow::PrintTargetQueue()
     ui->textEdit->setText(message.c_str());
 }
 
-void MainWindow::on_pushButton_clicked()
-{
-    mapping();
-
-}
-
 void MainWindow::mapping()
 {
     speedLimit = 150.0f;
@@ -608,10 +628,15 @@ void MainWindow::mapping()
     fifoTargets.In(Point(0, 3.0));
     fifoTargets.In(Point(2.8, 3));
     fifoTargets.In(Point(2.8, 3.8));
+    fifoTargets.In(Point(4.2, 3.8));
+    fifoTargets.In(Point(4.2, 3.0));
     fifoTargets.In(Point(4, 3.8));
     fifoTargets.In(Point(2.8, 3.8));
     fifoTargets.In(Point(2.8, 0));
     fifoTargets.In(Point(4.5, 0.0));
     fifoTargets.In(Point(4.5, 2.0));
 }
+
+
+
 

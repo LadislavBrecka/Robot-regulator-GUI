@@ -7,6 +7,7 @@
 #include <QTextStream>
 #include<windows.h>
 #include<iostream>
+#include<queue>
 //#include<arpa/inet.h>
 //#include<unistd.h>
 //#include<sys/socket.h>
@@ -98,10 +99,20 @@ public:
 #define MAP_HEIGHT 120
 #define MAP_STEP 10
 
+struct decision_maker {
+  int north;
+  int south;
+  int west;
+  int east;
+};
+
 class Map
 {
 public:
    int map[MAP_WIDTH][MAP_HEIGHT];
+   // Direction vectors
+   int drow[4] = { -1, 0, 1, 0 };
+   int dcol[4] = { 0, 1, 0, -1 };
 
 public:
     Map()
@@ -117,39 +128,62 @@ public:
         map[MAP_WIDTH/2][MAP_HEIGHT/2] = -1;
     }
 
-    void fillSquare(Point lidar)
+    void setWall(Point lidar)
     {
         int x = round(lidar.x * MAP_STEP + MAP_WIDTH  / 2);
         int y = MAP_HEIGHT - round(lidar.y * MAP_STEP + MAP_HEIGHT / 2);
         map[y][x] = 1;
     }
 
-    void printMapToConsole()
+    void fillNeightbours(int start_y, int start_x)
     {
-//         drawing colored strings
-//        #ifdef _WIN32
-//        SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-//        #endif
 
-        for (int i = 0; i < MAP_HEIGHT; ++i)
+        std::queue<std::pair<int,int>> q;
+        q.push( {start_y, start_x} );
+
+        int x, y, xx, yy;
+        while (!q.empty())
         {
-            for (int j = 0; j < MAP_WIDTH; ++j)
+            auto c = q.front();
+            y = c.first;
+            x = c.second;
+
+            if (map[y][x] == 1)
+                continue;
+
+            for(int i = 0; i < 4; i++)
             {
-                if (map[i][j] == 1)
-                    std::cout << "*" << ' ';
-//                    std::cout << "\033[32m" << map[i][j] << ' ' << "\033[0m";
-                else
-                    std::cout << " " << ' ';
-//                    std::cout << map[i][j] << ' ';
+                xx = x + drow[i]; // travel in an adiacent cell from the current position
+                yy = y + dcol[i];
+                if (xx >= 0 && xx < MAP_WIDTH && yy >= 0 && yy < MAP_HEIGHT && map[yy][xx] == 0)
+                {
+                    if (map[yy][xx] != 1)
+                    {
+                        q.push( {yy, xx} );
+                        map[yy][xx] = map[y][x] + 1; // you usually mark that you have been to this position in the matrix
+                        std::cout << map[yy][xx] << std::endl;
+                    }
+                }
             }
-            std::cout << std::endl;
+            q.pop();
+
         }
-        std::cout << std::endl;
+
     }
 
-    void printMapToFile()
+    void floodFillDistances(Point target)
     {
-        QFile file("map.txt");
+        int x = round(target.x * MAP_STEP + MAP_WIDTH  / 2);
+        int y = MAP_HEIGHT - round(target.y * MAP_STEP + MAP_HEIGHT / 2);
+        map[y][x] = 2;
+
+        // floodfill
+        fillNeightbours(y, x);
+    }
+
+    void saveToFile(std::string filename="map.txt")
+    {
+        QFile file(filename.c_str());
         file.open(QIODevice::WriteOnly | QIODevice::Text);
         QTextStream out(&file);
 
@@ -158,13 +192,58 @@ public:
             for (int j = 0; j < MAP_WIDTH; ++j)
             {
                 if (map[i][j] == 1)
-                    out << "*" << ' ';
+                    out << "*";
                 else
-                    out << " " << ' ';
+                    out << " ";
             }
             out << "\n";
         }
+        std::cout << "Map saved to file!" << std::endl;
+        file.close();
+    }
 
+    void loadFromFile(std::string filename)
+    {
+        QFile file(filename.c_str());
+        file.open(QIODevice::ReadOnly | QIODevice::Text);
+        QTextStream in(&file);
+        char temp;
+        for (int i = 0; i < MAP_HEIGHT; ++i)
+        {
+            for (int j = 0; j < MAP_WIDTH; ++j)
+            {
+                in >> temp;
+                if (temp == '*')
+                    map[i][j] = 1;
+                else if (temp == ' ')
+                    map[i][j] = 0;
+            }
+            in >> temp;
+        }
+
+        std::cout << "Map load from to file!" << std::endl;
+    }
+
+    void saveToFileRaw(std::string filename="map_raw.txt")
+    {
+        QFile file(filename.c_str());
+        file.open(QIODevice::WriteOnly | QIODevice::Text);
+        QTextStream out(&file);
+
+        for (int i = 0; i < MAP_HEIGHT; ++i)
+        {
+            for (int j = 0; j < MAP_WIDTH; ++j)
+            {
+                if (map[i][j] < 10)
+                    out << "  " << map[i][j] << " ";
+                else if (map[i][j] < 100)
+                    out << " " << map[i][j] << " ";
+                else
+                    out << map[i][j];
+            }
+            out << "\n";
+        }
+        std::cout << "Raw map saved to file!" << std::endl;
         file.close();
     }
 
@@ -249,6 +328,8 @@ private slots:
 
     void on_pushButton_clicked();
 
+    void on_checkBox_clicked(bool checked);
+
 private:
 
      JOYINFO joystickInfo;
@@ -269,6 +350,7 @@ private:
      bool navigate = false;
      bool map_mode = false;
      bool isRotating = false;
+     bool maping_nav = false;
 
      // lokalizacia - stavove premenne
      double l_r, l_r_prev, l_l, l_l_prev, l_k;
