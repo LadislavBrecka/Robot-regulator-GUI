@@ -87,10 +87,73 @@ void MainWindow::on_pushButton_10_clicked()
     // mapping mode
     if (maping_nav)
     {
-        map.loadFromFile("map.txt");
-        map.floodFillDistances(desirePoint);
+        int drow[4] = { -1, 0, 1, 0 };
+        int dcol[4] = { 0, 1, 0, -1 };
+        std::queue<std::pair<int,int>> q;
 
-        map.saveToFileRaw();
+        // for storing only points on the edge
+        std::vector<Point> desired_points;
+
+        int tx, ty, xx, yy, next_x, next_y, dir, prev_dir;
+
+        dir = 0;
+        prev_dir = 0;
+
+        // floodfilling BSF
+        map.loadFromFile("map_enlarged.txt");
+        map.floodFillDistances(desirePoint);
+        map.saveToFileRaw("map_flodfill.txt");
+
+        int robot_map_x = round(x * MAP_STEP + MAP_WIDTH  / 2);
+        int robot_mapp_y = MAP_HEIGHT - round(y * MAP_STEP + MAP_HEIGHT / 2);
+        q.push( {robot_mapp_y, robot_map_x} );
+
+        while (!q.empty())
+        {
+            auto c = q.front();
+            ty = c.first;
+            tx = c.second;
+
+            int min_value = 100000;
+            for(int i = 0; i < 4; i++)
+            {
+                xx = tx + drow[i]; // travel in an adiacent cell from the current position
+                yy = ty + dcol[i];
+                if (xx >= 0 && xx < MAP_WIDTH && yy >= 0 && yy < MAP_HEIGHT && map.map[yy][xx] > 1)
+                {
+                    if (min_value > map.map[yy][xx])
+                    {
+                        min_value = map.map[yy][xx];
+                        next_x = xx;
+                        next_y = yy;
+                        dir = i;
+                    }
+                }
+            }
+
+            if (map.map[next_y][next_x] > 2)
+            {
+                q.push( {next_y, next_x} );
+
+                if (prev_dir != dir)
+                {
+                    float real_x = (float)(tx - MAP_WIDTH/2.0f) / MAP_STEP;
+                    float real_y = ((float)(ty - MAP_HEIGHT) + (float)(MAP_HEIGHT/2.0f)) / MAP_STEP;
+                    real_x = int(real_x * 100) / 100.0f;
+                    real_y = int(real_y * 100) / 100.0f;
+
+                    map.map[ty][tx] = 0;
+                    if (real_x != 0 || real_y != 0)
+                        fifoTargets.In(Point(real_x,-real_y));
+                }
+            }
+
+            prev_dir = dir;
+            q.pop();
+        }
+
+        fifoTargets.In(desirePoint);
+        map.saveToFileRaw("map_path.txt");
     }
     else
     {
@@ -188,9 +251,9 @@ void MainWindow::processThisRobot()
         total_l = 0.0f;
         total_r = 0.0f;
 
-        pa1 = 0.03;
-        pa2 = 0.12;
-        pd = 0.05f;
+        pa1 = 0.012;
+        pa2 = 0.04;
+        pd = 0.02f;
 
         rotationLock = false;
         rotationDir = 0;
@@ -585,7 +648,64 @@ void MainWindow::EvaluateRegulation(double distance, double theta)
             map_mode = false;
             speedLimit = MAX_SPEED_LIMIT;
             speedDifferenceLimit = MAX_START_SPEED;
-            map.saveToFile();
+            map.saveToFile("map.txt");
+
+            // enlarge walls
+            int new_map[MAP_WIDTH][MAP_HEIGHT];
+            for(int i = 0; i < MAP_HEIGHT; i++)
+            {
+                for(int j = 0; j < MAP_WIDTH; j++)
+                {
+                    new_map[i][j] = map.map[i][j];
+                }
+            }
+
+            for(int i = 0; i < MAP_HEIGHT; i++)
+            {
+                for(int j = 0; j < MAP_WIDTH; j++)
+                {
+                    if (map.map[i][j] == 1)
+                    {
+                        new_map[i+1][j] = 1;
+                        new_map[i+2][j] = 1;
+
+                        new_map[i-1][j] = 1;
+                        new_map[i-2][j] = 1;
+
+                        new_map[i][j-1] = 1;
+                        new_map[i][j-2] = 1;
+
+                        new_map[i][j+1] = 1;
+                        new_map[i][j+2] = 1;
+
+                        // diagonal
+                        new_map[i+1][j+1] = 1;
+                        new_map[i+2][j+2] = 1;
+
+                        new_map[i-1][j-1] = 1;
+                        new_map[i-2][j-2] = 1;
+
+                        new_map[i-1][j+1] = 1;
+                        new_map[i-2][j+2] = 1;
+
+                        new_map[i+1][j-1] = 1;
+                        new_map[i+1][j-2] = 1;
+
+
+                    }
+                }
+            }
+
+            for(int i = 0; i < MAP_HEIGHT; i++)
+            {
+                for(int j = 0; j < MAP_WIDTH; j++)
+                {
+                    map.map[i][j] = new_map[i][j];
+                }
+            }
+
+
+            map.saveToFile("map_enlarged.txt");
         }
 
         prevTransSpeed = transSpeed;
@@ -628,7 +748,7 @@ void MainWindow::mapping()
     fifoTargets.In(Point(0, 3.0));
     fifoTargets.In(Point(2.8, 3));
     fifoTargets.In(Point(2.8, 3.8));
-    fifoTargets.In(Point(4.2, 3.8));
+    fifoTargets.In(Point(4.2, 3.8));  // test 4 uloha
     fifoTargets.In(Point(4.2, 3.0));
     fifoTargets.In(Point(4, 3.8));
     fifoTargets.In(Point(2.8, 3.8));

@@ -8,9 +8,6 @@
 #include<windows.h>
 #include<iostream>
 #include<queue>
-//#include<arpa/inet.h>
-//#include<unistd.h>
-//#include<sys/socket.h>
 #include<sys/types.h>
 #include<stdio.h>
 #include<string.h>
@@ -18,13 +15,6 @@
 #include<vector>
 #include "ckobuki.h"
 #include "rplidar.h"
-/*#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/core/utility.hpp"
-#include "opencv2/videoio.hpp"
-#include "opencv2/imgcodecs.hpp"*/
 
 #define MAX_SPEED_LIMIT 400
 #define MAX_START_SPEED 50
@@ -95,16 +85,9 @@ public:
     }
 };
 
-#define MAP_WIDTH 120
-#define MAP_HEIGHT 120
-#define MAP_STEP 10
-
-struct decision_maker {
-  int north;
-  int south;
-  int west;
-  int east;
-};
+#define MAP_WIDTH 144
+#define MAP_HEIGHT 144
+#define MAP_STEP 12
 
 class Map
 {
@@ -161,14 +144,11 @@ public:
                     {
                         q.push( {yy, xx} );
                         map[yy][xx] = map[y][x] + 1; // you usually mark that you have been to this position in the matrix
-                        std::cout << map[yy][xx] << std::endl;
                     }
                 }
             }
             q.pop();
-
         }
-
     }
 
     void floodFillDistances(Point target)
@@ -221,7 +201,7 @@ public:
             in >> temp;
         }
 
-        std::cout << "Map load from to file!" << std::endl;
+        std::cout << "Map load from file!" << std::endl;
     }
 
     void saveToFileRaw(std::string filename="map_raw.txt")
