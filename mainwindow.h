@@ -178,7 +178,7 @@ public:
             }
             out << "\n";
         }
-        std::cout << "Map saved to file!" << std::endl;
+        std::cout << "Map saved to file " << filename << "!" << std::endl;
         file.close();
     }
 
@@ -201,7 +201,7 @@ public:
             in >> temp;
         }
 
-        std::cout << "Map load from file!" << std::endl;
+        std::cout << "Map load from file " << filename << "!" << std::endl;
     }
 
     void saveToFileRaw(std::string filename="map_raw.txt")
@@ -223,7 +223,7 @@ public:
             }
             out << "\n";
         }
-        std::cout << "Raw map saved to file!" << std::endl;
+        std::cout << "Raw map saved to file " << filename << "!" << std::endl;
         file.close();
     }
 
@@ -291,6 +291,7 @@ private slots:
     void RegulatorRotation(double dTheta);
     void RegulatorTranslation(double distance, double dTheta);
     void EvaluateRegulation(double distance, double dTheta);
+    bool PointCanBeReached(Point target);
 
     // qt realted functions
     void getNewFrame();
@@ -299,16 +300,14 @@ private slots:
     void on_pushButton_4_clicked();
     void on_pushButton_5_clicked();
     void on_pushButton_6_clicked();
-    void on_pushButton_7_clicked();
     void on_pushButton_9_clicked();
     void on_pushButton_10_clicked();
-    void on_pushButton_11_clicked();
-
-    void on_pushButton_8_clicked();
 
     void on_pushButton_clicked();
+    void on_checkBox_1_clicked(bool checked);
+    void on_checkBox_2_clicked(bool checked);
 
-    void on_checkBox_clicked(bool checked);
+    void on_checkBox_3_clicked(bool checked);
 
 private:
 
@@ -331,6 +330,8 @@ private:
      bool map_mode = false;
      bool isRotating = false;
      bool maping_nav = false;
+     bool reactive_nav = false;
+     bool unreachable = false;
 
      // lokalizacia - stavove premenne
      double l_r, l_r_prev, l_l, l_l_prev, l_k;
@@ -348,6 +349,7 @@ private:
 
      // fifo queue pre target pozicie;
      FifoQueue fifoTargets;
+     Point target_point;
      Map map;
 
      bool rotationLock;

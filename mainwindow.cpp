@@ -55,17 +55,48 @@ void MainWindow::on_pushButton_6_clicked() //left
     RobotSetRotationSpeed(3.14159/2);
 }
 
-void MainWindow::on_pushButton_7_clicked() // start navigate
+void MainWindow::on_pushButton_clicked()
 {
-    if (!fifoTargets.GetPoints().empty())
-        navigate = !navigate;
-    else
-        std::cout << "No points in queue" << std::endl;
+    mapping();
 }
 
-void MainWindow::on_pushButton_8_clicked()
+void MainWindow::on_checkBox_1_clicked(bool checked)
 {
+    maping_nav = checked;
+    if (reactive_nav)
+    {
+        reactive_nav = false;
+        ui->checkBox_2->setChecked(false);
+    }
 
+    ui->checkBox_3->setChecked(false);
+}
+
+void MainWindow::on_checkBox_2_clicked(bool checked)
+{
+    reactive_nav = checked;
+    if (maping_nav)
+    {
+        maping_nav = false;
+        ui->checkBox_1->setChecked(false);
+    }
+
+    ui->checkBox_3->setChecked(false);
+}
+
+void MainWindow::on_checkBox_3_clicked(bool checked)
+{
+    if (reactive_nav)
+    {
+        reactive_nav = false;
+        ui->checkBox_2->setChecked(false);
+    }
+
+    if (maping_nav)
+    {
+        maping_nav = false;
+        ui->checkBox_1->setChecked(false);
+    }
 }
 
 void MainWindow::on_pushButton_9_clicked() //start button
@@ -74,7 +105,6 @@ void MainWindow::on_pushButton_9_clicked() //start button
     laserthreadHandle=CreateThread(NULL,0,laserUDPVlakno, (void *)this,0,&laserthreadID);
     robotthreadHandle=CreateThread(NULL,0, robotUDPVlakno, (void *)this,0,&robotthreadID);
     connect(this,SIGNAL(uiValuesChanged(double,double,double)),this,SLOT(setUiValues(double,double,double)));
-
 }
 
 // add point to queue
@@ -155,34 +185,17 @@ void MainWindow::on_pushButton_10_clicked()
         fifoTargets.In(desirePoint);
         map.saveToFileRaw("map_path.txt");
     }
+    else if (reactive_nav)
+    {
+        target_point = desirePoint;
+    }
+
     else
     {
         fifoTargets.In(desirePoint);
     }
 
-}
-
-void MainWindow::on_pushButton_11_clicked()
-{
-    map.loadFromFile("map.txt");
-    for (int i = 0; i < MAP_HEIGHT; ++i)
-    {
-        for (int j = 0; j < MAP_WIDTH; ++j)
-        {
-
-        }
-    }
-
-}
-
-void MainWindow::on_pushButton_clicked()
-{
-    mapping();
-}
-
-void MainWindow::on_checkBox_clicked(bool checked)
-{
-    maping_nav = checked;
+    navigate = !navigate;
 }
 
 void MainWindow::paintEvent(QPaintEvent *event)
@@ -310,6 +323,97 @@ void MainWindow::processThisRobot()
     x_prev = x;
     y_prev = y;
 
+    // reactive navigation
+    if (navigate && reactive_nav && fifoTargets.GetPoints().empty())
+    {
+        unreachable = !PointCanBeReached(target_point);
+
+        if (unreachable)
+        {
+            std::cout << "Point cannot be reached, finding new way!" << std::endl;
+
+            int offset_theta = RadToDegree(GetTargetOffset(Point(x, y), target_point).second);
+
+            Point target_left;
+            Point target_right;
+
+            if (offset_theta < 0)
+                offset_theta = 360 + offset_theta;
+
+            // compute percentage from 0 to 360
+            double offset_percentage = (100.0 * offset_theta) / 360.0;
+            int olp = (copyOfLaserData.numberOfScans * offset_percentage) / 100.0f;
+            std::cout << "Theta percentage from robot: " << offset_percentage << std::endl;
+
+            // left side of obstacle
+            double prev_D = copyOfLaserData.Data[olp-1].scanDistance;
+            for(int k = olp; k < copyOfLaserData.numberOfScans; k++)
+            {
+                double dist  = copyOfLaserData.Data[k].scanDistance;
+
+                if (dist > 150.0f && dist < 4500.0 && abs(prev_D - dist) > 800.0)
+                {
+                    double dist_prev_point  = copyOfLaserData.Data[k-1].scanDistance;
+                    double angle_prev_point = copyOfLaserData.Data[k-1].scanAngle;
+                    double angle_sum = f_k + DegreeToRad(360.0f - angle_prev_point);
+
+                    if (angle_sum >= 2*PI)     angle_sum -= 2*PI;
+                    else if (angle_sum < 0.0f) angle_sum += 2*PI;
+
+                    double x_obstacle = x + (dist_prev_point / 1000.0f + 0.4) * cos(angle_sum + PI/12);
+                    double y_obstacle = y + (dist_prev_point / 1000.0f + 0.4) * sin(angle_sum + PI/12);
+
+                    // insert new point
+                    target_left = Point(x_obstacle, y_obstacle);
+                    std::cout << "Found LEFT point at: [" << x_obstacle << ", " << y_obstacle << "]" << std::endl;
+                    break;
+                }
+                prev_D = dist;
+            }
+
+            // right side of obstacle
+            prev_D = copyOfLaserData.Data[olp+1].scanDistance;
+            for(int k = olp; k > 0; k--)
+            {
+                double dist  = copyOfLaserData.Data[k].scanDistance;
+
+                if (dist > 150.0f && dist < 4500.0 && abs(prev_D - dist) > 800.0)
+                {
+                    double dist_prev_point  = copyOfLaserData.Data[k+1].scanDistance;
+                    double angle_prev_point = copyOfLaserData.Data[k+1].scanAngle;
+                    double angle_sum = f_k + DegreeToRad(360.0f - angle_prev_point);
+
+                    if (angle_sum >= 2*PI)     angle_sum -= 2*PI;
+                    else if (angle_sum < 0.0f) angle_sum += 2*PI;
+
+                    double x_obstacle = x + (dist_prev_point / 1000.0f + 0.4) * cos(angle_sum - PI/12);
+                    double y_obstacle = y + (dist_prev_point / 1000.0f + 0.4) * sin(angle_sum - PI/12);
+
+                    // insert new point
+                    target_right = Point(x_obstacle, y_obstacle);
+                    std::cout << "Found RIGHT at: [" << x_obstacle << ", " << y_obstacle << "]" << std::endl;
+                    break;
+
+                }
+                prev_D = dist;
+            }
+
+            std::cout << "Adding new point" << std::endl;
+
+            auto offset_left  = GetTargetOffset(Point(x, y), target_left);
+            auto offset_right = GetTargetOffset(Point(x, y), target_right);
+
+            if (offset_left.first > offset_right.first)  fifoTargets.In(target_right);
+            else                                         fifoTargets.In(target_left);
+        }
+        else
+        {
+            fifoTargets.In(target_point);
+        }
+
+    }
+
+
     // REGULATION
     if (!fifoTargets.GetPoints().empty() && (navigate || map_mode))
     {
@@ -351,10 +455,6 @@ void MainWindow::processThisRobot()
             }
         }
     }
-
-    // FILLING MAP
-
-
     datacounter++;
 }
 
@@ -640,7 +740,7 @@ void MainWindow::EvaluateRegulation(double distance, double theta)
             std::cout << std::endl << "Poping element!" << std::endl << std::endl;
         fifoTargets.Pop();
 
-        if (fifoTargets.GetPoints().empty() && !map_mode)
+        if (fifoTargets.GetPoints().empty() && !map_mode && !reactive_nav)
             navigate = false;
 
         if (fifoTargets.GetPoints().empty() && map_mode)
@@ -713,6 +813,37 @@ void MainWindow::EvaluateRegulation(double distance, double theta)
     }
 }
 
+bool MainWindow::PointCanBeReached(Point target)
+{
+    // check with zone if point is reachable
+    Point actual(x, y);
+    // ziskanie chyby polohy
+    auto targetOffset = GetTargetOffset(actual, target_point);
+
+    if (reactive_nav)
+    {
+        for(int k=0;k<copyOfLaserData.numberOfScans;k++)
+        {
+            float D = copyOfLaserData.Data[k].scanDistance / 1000.0;
+            float a = 360.0 - copyOfLaserData.Data[k].scanAngle;
+            if (a > 360)    a -= 360;
+            if (a < 0)      a += 360;
+            float pointAngleZone = DegreeToRad(a) - targetOffset.second;
+
+            if (D > 0.005 && D < targetOffset.first && (pointAngleZone < PI/2 || pointAngleZone > (3/2)*PI) )
+            {
+                float dCrit = robot.b / sin(pointAngleZone);
+                if (dCrit > D)
+                {
+                    return false;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
 double MainWindow::RadToDegree(double radians)
 {
     return radians * (180/PI);
@@ -734,8 +865,6 @@ void MainWindow::PrintTargetQueue()
         for (auto v : targets)
                 message += " --  X: " + std::to_string(v.x) + ", Y:" + std::to_string(v.y) + " --  ";
     }
-
-    ui->textEdit->setText(message.c_str());
 }
 
 void MainWindow::mapping()
@@ -748,15 +877,13 @@ void MainWindow::mapping()
     fifoTargets.In(Point(0, 3.0));
     fifoTargets.In(Point(2.8, 3));
     fifoTargets.In(Point(2.8, 3.8));
-    fifoTargets.In(Point(4.2, 3.8));  // test 4 uloha
+    fifoTargets.In(Point(4.2, 3.8));  // 1 test uloha 4
     fifoTargets.In(Point(4.2, 3.0));
     fifoTargets.In(Point(4, 3.8));
-    fifoTargets.In(Point(2.8, 3.8));
+    fifoTargets.In(Point(2.8, 3.8));  // 2 test uloha 4
     fifoTargets.In(Point(2.8, 0));
     fifoTargets.In(Point(4.5, 0.0));
     fifoTargets.In(Point(4.5, 2.0));
 }
-
-
 
 
