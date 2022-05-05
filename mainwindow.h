@@ -58,6 +58,7 @@ public:
 
     void In(Point p)
     {
+        std::cout << "Added new point to queue: [" << p.x << ", " << p.y << std::endl;
         m_targets.push_back(p);
     }
 
@@ -349,8 +350,11 @@ private:
 
      // fifo queue pre target pozicie;
      FifoQueue fifoTargets;
-     Point target_point;
      Map map;
+
+     Point pTarget;
+     Point pLeftObstacle;
+     Point pRightObstacle;
 
      bool rotationLock;
      int rotationDir;

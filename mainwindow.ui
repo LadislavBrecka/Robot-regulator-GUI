@@ -190,14 +190,14 @@
       <item>
        <widget class="QCheckBox" name="checkBox_1">
         <property name="text">
-         <string>Use mapping nav</string>
+         <string>Mapping nav</string>
         </property>
        </widget>
       </item>
       <item>
        <widget class="QCheckBox" name="checkBox_2">
         <property name="text">
-         <string>Use reactive nav</string>
+         <string>Reactive nav (not working)</string>
         </property>
        </widget>
       </item>

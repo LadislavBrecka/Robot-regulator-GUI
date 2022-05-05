@@ -187,7 +187,7 @@ void MainWindow::on_pushButton_10_clicked()
     }
     else if (reactive_nav)
     {
-        target_point = desirePoint;
+        pTarget = desirePoint;
     }
 
     else
@@ -229,14 +229,33 @@ void MainWindow::paintEvent(QPaintEvent *event)
             //teraz tu kreslime random udaje... vykreslite to co treba... t.j. data z lidaru
             for(int k=0;k<copyOfLaserData.numberOfScans/*360*/;k++)
             {
-                int dist=copyOfLaserData.Data[k].scanDistance/20;
-                int xp=rect.width()-(rect.width()/2+dist*2*sin((360.0-copyOfLaserData.Data[k].scanAngle)*3.14159/180.0))+rect.topLeft().x();
-                int yp=rect.height()-(rect.height()/2+dist*2*cos((360.0-copyOfLaserData.Data[k].scanAngle)*3.14159/180.0))+rect.topLeft().y();
+                int dist=copyOfLaserData.Data[k].scanDistance/30;
+                int xp=rect.width()-(rect.width()/2+dist*2*sin((360.0-copyOfLaserData.Data[k].scanAngle)*3.14159/180.0 + f_k))+rect.topLeft().x();
+                int yp=rect.height()-(rect.height()/2+dist*2*cos((360.0-copyOfLaserData.Data[k].scanAngle)*3.14159/180.0 + f_k))+rect.topLeft().y();
                 if(rect.contains(xp,yp))
                     painter.drawEllipse(QPoint(xp, yp),2,2);
             }
         }
     }
+
+    auto left_offset = GetTargetOffset(Point(x, y), pLeftObstacle);
+    auto right_offset = GetTargetOffset(Point(x, y), pRightObstacle);
+
+    painter.setPen(QPen(Qt::red));
+
+    int dist=left_offset.first/30;
+    int xp=rect.width()-(rect.width()/2+dist*2*sin(left_offset.second + f_k))+rect.topLeft().x();
+    int yp=rect.height()-(rect.height()/2+dist*2*cos(left_offset.second + f_k))+rect.topLeft().y();
+    if(rect.contains(xp,yp))
+        painter.drawEllipse(QPoint(xp, yp),2,2);
+
+    dist=right_offset.first/30;
+    xp=rect.width()-(rect.width()/2+dist*2*sin(right_offset.second + f_k))+rect.topLeft().x();
+    yp=rect.height()-(rect.height()/2+dist*2*cos(right_offset.second + f_k))+rect.topLeft().y();
+    if(rect.contains(xp,yp))
+        painter.drawEllipse(QPoint(xp, yp),2,2);
+
+
 }
 
 void  MainWindow::setUiValues(double robotX,double robotY,double robotFi)
@@ -326,16 +345,14 @@ void MainWindow::processThisRobot()
     // reactive navigation
     if (navigate && reactive_nav && fifoTargets.GetPoints().empty())
     {
-        unreachable = !PointCanBeReached(target_point);
+        unreachable = !PointCanBeReached(pTarget);
 
         if (unreachable)
         {
-            std::cout << "Point cannot be reached, finding new way!" << std::endl;
+            std::vector<Point> vLeftObstacles;
+            std::vector<Point> vRightObstacles;
 
-            int offset_theta = RadToDegree(GetTargetOffset(Point(x, y), target_point).second);
-
-            Point target_left;
-            Point target_right;
+            int offset_theta = RadToDegree(GetTargetOffset(Point(x, y), pTarget).second);
 
             if (offset_theta < 0)
                 offset_theta = 360 + offset_theta;
@@ -347,26 +364,34 @@ void MainWindow::processThisRobot()
 
             // left side of obstacle
             double prev_D = copyOfLaserData.Data[olp-1].scanDistance;
-            for(int k = olp; k < copyOfLaserData.numberOfScans; k++)
+            for(int k = olp; k <= copyOfLaserData.numberOfScans; k++)
             {
                 double dist  = copyOfLaserData.Data[k].scanDistance;
 
-                if (dist > 150.0f && dist < 4500.0 && abs(prev_D - dist) > 800.0)
+                if (dist > 250.0f && abs(prev_D - dist) > 800.0)
                 {
                     double dist_prev_point  = copyOfLaserData.Data[k-1].scanDistance;
                     double angle_prev_point = copyOfLaserData.Data[k-1].scanAngle;
-                    double angle_sum = f_k + DegreeToRad(360.0f - angle_prev_point);
 
-                    if (angle_sum >= 2*PI)     angle_sum -= 2*PI;
-                    else if (angle_sum < 0.0f) angle_sum += 2*PI;
+                    double angle_sum_prev = f_k + DegreeToRad(360.0f - angle_prev_point);
 
-                    double x_obstacle = x + (dist_prev_point / 1000.0f + 0.4) * cos(angle_sum + PI/12);
-                    double y_obstacle = y + (dist_prev_point / 1000.0f + 0.4) * sin(angle_sum + PI/12);
+                    if (angle_sum_prev >= 2*PI)     angle_sum_prev -= 2*PI;
+                    else if (angle_sum_prev < 0.0f) angle_sum_prev  += 2*PI;
 
-                    // insert new point
-                    target_left = Point(x_obstacle, y_obstacle);
-                    std::cout << "Found LEFT point at: [" << x_obstacle << ", " << y_obstacle << "]" << std::endl;
-                    break;
+                    float foundObstacleX = x + (dist_prev_point / 1000.0f) * cos(angle_sum_prev);
+                    float foundObstacleY = y + (dist_prev_point / 1000.0f) * sin(angle_sum_prev);
+
+                    std::cout << "Found LEFT point at: [" << foundObstacleX << ", " << foundObstacleY << "]" << std::endl;
+
+                    double p = sqrt(dist_prev_point + robot.b);
+                    double new_a = atan2(robot.b, dist_prev_point);
+
+                    foundObstacleX -= (p / 1000.0f + robot.b) * cos(new_a);
+                    foundObstacleY += (p / 1000.0f + robot.b) * sin(new_a);
+
+                    std::cout << "Offset LEFT point at: [" << foundObstacleX << ", " << foundObstacleY << "]" << std::endl;
+
+                    vLeftObstacles.push_back({foundObstacleX, foundObstacleY});
                 }
                 prev_D = dist;
             }
@@ -377,38 +402,83 @@ void MainWindow::processThisRobot()
             {
                 double dist  = copyOfLaserData.Data[k].scanDistance;
 
-                if (dist > 150.0f && dist < 4500.0 && abs(prev_D - dist) > 800.0)
+                if (dist > 150.0f && abs(prev_D - dist) > 800.0)
                 {
-                    double dist_prev_point  = copyOfLaserData.Data[k+1].scanDistance;
-                    double angle_prev_point = copyOfLaserData.Data[k+1].scanAngle;
-                    double angle_sum = f_k + DegreeToRad(360.0f - angle_prev_point);
+                    double dist_prev_point  = copyOfLaserData.Data[k].scanDistance;
+                    double angle_prev_point = copyOfLaserData.Data[k].scanAngle;
 
-                    if (angle_sum >= 2*PI)     angle_sum -= 2*PI;
-                    else if (angle_sum < 0.0f) angle_sum += 2*PI;
+                    double angle_sum_prev = f_k + DegreeToRad(360.0f - angle_prev_point);
 
-                    double x_obstacle = x + (dist_prev_point / 1000.0f + 0.4) * cos(angle_sum - PI/12);
-                    double y_obstacle = y + (dist_prev_point / 1000.0f + 0.4) * sin(angle_sum - PI/12);
+                    if (angle_sum_prev >= 2*PI)     angle_sum_prev -= 2*PI;
+                    else if (angle_sum_prev < 0.0f) angle_sum_prev  += 2*PI;
 
-                    // insert new point
-                    target_right = Point(x_obstacle, y_obstacle);
-                    std::cout << "Found RIGHT at: [" << x_obstacle << ", " << y_obstacle << "]" << std::endl;
-                    break;
+                    float foundObstacleX = x + (dist_prev_point / 1000.0f) * cos(angle_sum_prev);
+                    float foundObstacleY = y + (dist_prev_point / 1000.0f) * sin(angle_sum_prev);
 
+                    std::cout << "Found RIGHT point at: [" << foundObstacleX << ", " << foundObstacleY << "]" << std::endl;
+
+                    double p = sqrt(dist_prev_point + robot.b);
+                    double new_a = atan2(robot.b, dist_prev_point);
+
+                    foundObstacleX -= (p / 1000.0f) * cos(new_a);
+                    foundObstacleY += (p / 1000.0f) * sin(new_a);
+
+                    std::cout << "Offset RIGHT point at: [" << foundObstacleX << ", " << foundObstacleY << "]" << std::endl;
+
+
+                    vRightObstacles.push_back({foundObstacleX, foundObstacleY});
                 }
                 prev_D = dist;
             }
 
-            std::cout << "Adding new point" << std::endl;
+            double leftMin = 9999.9;
+            for (Point pLeft : vLeftObstacles)
+            {
+                auto robotToLeftObstacleDistance  = GetTargetOffset(Point(x,y), pLeft);
+                auto leftObstacleToTargetDistance  = GetTargetOffset(pLeft, pTarget);
+                double leftObstacleDistance = robotToLeftObstacleDistance.first + leftObstacleToTargetDistance.first;
+                if (leftObstacleDistance < leftMin)
+                {
+                    leftMin = leftObstacleDistance;
+                    pLeftObstacle = pLeft;
+                }
+            }
 
-            auto offset_left  = GetTargetOffset(Point(x, y), target_left);
-            auto offset_right = GetTargetOffset(Point(x, y), target_right);
+            double righttMin = 9999.9;
+            for (Point pRight : vRightObstacles)
+            {
+                auto robotToRightObstacleDistance  = GetTargetOffset(Point(x,y), pRight);
+                auto rightObstacleToTargetDistance  = GetTargetOffset(pRight, pTarget);
+                double rightObstacleDistance = robotToRightObstacleDistance.first + rightObstacleToTargetDistance.first;
+                if (rightObstacleDistance < righttMin)
+                {
+                    righttMin = rightObstacleDistance;
+                    pRightObstacle = pRight;
+                }
+            }
 
-            if (offset_left.first > offset_right.first)  fifoTargets.In(target_right);
-            else                                         fifoTargets.In(target_left);
+            if (leftMin < righttMin)
+            {
+                std::cout << "Left wins" << std::endl;
+                if (pLeftObstacle.isValid())
+                {
+                    fifoTargets.Pop();
+                    fifoTargets.In(pLeftObstacle);
+                }
+            }
+            else
+            {
+                std::cout << "Right wins" << std::endl;
+                if (pRightObstacle.isValid())
+                {
+                    fifoTargets.Pop();
+                    fifoTargets.In(pRightObstacle);
+                }
+            }
         }
         else
         {
-            fifoTargets.In(target_point);
+            fifoTargets.In(pTarget);
         }
 
     }
@@ -818,7 +888,7 @@ bool MainWindow::PointCanBeReached(Point target)
     // check with zone if point is reachable
     Point actual(x, y);
     // ziskanie chyby polohy
-    auto targetOffset = GetTargetOffset(actual, target_point);
+    auto targetOffset = GetTargetOffset(actual, target);
 
     if (reactive_nav)
     {
@@ -826,21 +896,26 @@ bool MainWindow::PointCanBeReached(Point target)
         {
             float D = copyOfLaserData.Data[k].scanDistance / 1000.0;
             float a = 360.0 - copyOfLaserData.Data[k].scanAngle;
+            double targetOffsetAngle = targetOffset.second;
+
             if (a > 360)    a -= 360;
             if (a < 0)      a += 360;
-            float pointAngleZone = DegreeToRad(a) - targetOffset.second;
+
+            float pointAngleZone = DegreeToRad(a) + f_k - targetOffsetAngle;
 
             if (D > 0.005 && D < targetOffset.first && (pointAngleZone < PI/2 || pointAngleZone > (3/2)*PI) )
             {
-                float dCrit = robot.b / sin(pointAngleZone);
+                float dCrit = 0.4 / sin(pointAngleZone);
                 if (dCrit > D)
                 {
+                    std::cout << "Point cannot be reached!" << std::endl;
                     return false;
                 }
             }
         }
     }
 
+    std::cout << "Point can be reached!" << std::endl;
     return true;
 }
 
