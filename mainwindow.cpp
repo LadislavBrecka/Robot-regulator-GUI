@@ -394,7 +394,7 @@ void MainWindow::processThisRobot()
 
                     // k-1 point
                     double new_a;
-                    if (y > foundObstacleY_prev && x < foundObstacleX_prev+0.1)
+                    if (y > foundObstacleY_prev && x > foundObstacleX_prev)
                         new_a = (f_k + angle_prev) - atan2(1.5f * robot.b, dist_prev);
                     else
                         new_a = (f_k + angle_prev) + atan2(1.5f * robot.b, dist_prev);
@@ -403,7 +403,7 @@ void MainWindow::processThisRobot()
                     float foundObstacleY_offset_prev = y + p * sin(new_a);
 
                     // k point
-                    if (y > foundObstacleY_act && x < foundObstacleX_act+0.1)
+                    if (y > foundObstacleY_act && x > foundObstacleX_act)
                         new_a = (f_k + angle_act) - atan2(1.5f * robot.b, dist_act);
                     else
                         new_a = (f_k + angle_act) + atan2(1.5f * robot.b, dist_act);
@@ -449,7 +449,7 @@ void MainWindow::processThisRobot()
 
                     // k-1 point
                     double new_a;
-                    if (y > foundObstacleY_prev && x < foundObstacleX_prev+0.1)
+                    if (y > foundObstacleY_prev && x < foundObstacleX_prev)
                         new_a = (f_k + angle_prev) + atan2(1.5f * robot.b, dist_prev);
                     else
                         new_a = (f_k + angle_prev) - atan2(1.5f * robot.b, dist_prev);
@@ -458,7 +458,7 @@ void MainWindow::processThisRobot()
                     float foundObstacleY_offset_prev = y + p * sin(new_a);
 
                     // k point
-                    if (y > foundObstacleY_act && x < foundObstacleX_act+0.1)
+                    if (y > foundObstacleY_act && x < foundObstacleX_act)
                         new_a = (f_k + angle_act) + atan2(1.5f * robot.b, dist_act);
                     else
                         new_a = (f_k + angle_act) - atan2(1.5f * robot.b, dist_act);
