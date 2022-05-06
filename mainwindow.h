@@ -15,9 +15,10 @@
 #include<vector>
 #include "ckobuki.h"
 #include "rplidar.h"
+#include <QKeyEvent>
 
-#define MAX_SPEED_LIMIT 400
-#define MAX_START_SPEED 50
+#define MAX_SPEED_LIMIT 500
+#define MAX_START_SPEED 60
 
 struct Point {
     float x;
@@ -311,8 +312,8 @@ private slots:
     void on_checkBox_3_clicked(bool checked);
 
 private:
-
      JOYINFO joystickInfo;
+     void keyPressEvent(QKeyEvent *event);
      Ui::MainWindow *ui;
      void paintEvent(QPaintEvent *event);
      int updateLaserPicture;
@@ -333,6 +334,7 @@ private:
      bool maping_nav = false;
      bool reactive_nav = false;
      bool unreachable = false;
+     bool directPossible = false;
 
      // lokalizacia - stavove premenne
      double l_r, l_r_prev, l_l, l_l_prev, l_k;
@@ -355,6 +357,7 @@ private:
      Point pTarget;
      Point pLeftObstacle;
      Point pRightObstacle;
+     Point pObstacle;
 
      bool rotationLock;
      int rotationDir;

@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>788</width>
+    <width>792</width>
     <height>620</height>
    </rect>
   </property>
@@ -197,7 +197,7 @@
       <item>
        <widget class="QCheckBox" name="checkBox_2">
         <property name="text">
-         <string>Reactive nav (not working)</string>
+         <string>Reactive nav</string>
         </property>
        </widget>
       </item>
@@ -397,7 +397,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>788</width>
+     <width>792</width>
      <height>21</height>
     </rect>
    </property>
