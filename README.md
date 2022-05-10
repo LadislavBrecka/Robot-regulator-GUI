@@ -9,9 +9,7 @@ Všetky úlohy sú implementované do demo príkladu, ktorý sme dostali ako pod
     vztiahnutá k počiatočnej polohe robota pri jeho spustení.
 
     Druhou časťou úlohy bolo polohovanie. Z predošlej časti máme x,y a φ, zadáme želanú polohu ako
-    Xn a Yn a budeme očakávať, že robot sa do želanej polohy dostane. To zabezpečíme pomocou implementácie
-    P regulátora s rozbehom po rampe, aby sme zabránili prešmyku kolies pri rýchlom rozbehu (čo by skres-
-    lilo odometriu).
+    Xn a Yn a budeme očakávať, že robot sa do želanej polohy dostane.
 
 ### Úloha 1 - implementácia ###
 
@@ -24,6 +22,9 @@ Všetky úlohy sú implementované do demo príkladu, ktorý sme dostali ako pod
     rotačnej rýchlosti. Algoritmus je znázornený na obrázku pod týmto odstavcom. Zásobník, do ktorého
     pridávame želanú polohu, je realizovaný ako FIFO zásobník. Môžeme teda súčasne zadať naraz po sebe 
     viacero želaných bodov a robot sa bude polohovať postupne ku každému v poradí, akom boli pridané.
+    Rozbeh robota pri translačnom aj rotačnom pohybe je po rampe. Tento spôsob rozbehu predchádza prešmyku
+    kolies, čo by spôsobilo nepresnosť pri lokalizácii, nakoľko lokalizácia používa dáta z enkodérov a
+    vyrátava podľa nich prejdenú vzdialenosť každého kolesa.
 ![Optional Text](images/diagram_uloha1.png)
 
 ### Úloha 1 - spustenie ###
@@ -63,9 +64,8 @@ Všetky úlohy sú implementované do demo príkladu, ktorý sme dostali ako pod
 
 ### Úloha 2 - spustenie ###
 
-    Rovnako ako v predošlej úlohe, použijeme zadávanie súradníc želaného bodu v časti "Desired position".
-    Zmena je však v prepnutí módu navigácie. Z módu "Plan P reg" musíme prekliknúť možnosť "Reactive nav".
-    Zvyšok je rovnaký. Stlačíme tlačidlo "Navigate" a robot sa začne pohybovať do cieľa - zároveň obchádza 
+    Zadáme súradnice želaného bodu v časti "Desired position". Z módu "Plan P reg" musíme prekliknúť možnosť
+    "Reactive nav". Stlačíme tlačidlo "Navigate" a robot sa začne pohybovať do cieľa - zároveň obchádza 
     prekážky.
 ![Optional Text](images/gui2.png)  
 
@@ -88,19 +88,18 @@ Všetky úlohy sú implementované do demo príkladu, ktorý sme dostali ako pod
     následne reprezentovaný ako číslo 1. Dôležitý bod je, že nemapujeme, ak je robot v rotácii. Pri rotácii
     dochádza k veľmi veľkým nepresnostiam a skresľovalo by to našu mapu. Aby sme zmapovali celé prostredie, 
     naplníme si zásobník takými bodmi v priestore, aby robot zmapoval všetky časti oblasti. 
-    Použijeme jednoduché polohovanie k tomu, aby sa robot dostal ku každému bodu
-    (body som rozvrhol tak, že robot nemusí obchádzať prekážky a teda používať reaktívnu navigáciu). Zároveň,
-    aby nevznikali zbytočné nepresnosti, maximálna rýchlosť robota pri mapovacom móde sa zníži, nakoľko pri
-    nižšej rýchlosti robota sú nepresnosti menšie. Algoritmus je znázornený na obrázku pod týmto odstavcom.
+    Použijeme polohovanie k tomu, aby sa robot dostal ku každému bodu (body som rozvrhol tak, že robot nemusí
+    obchádzať prekážky a teda používať reaktívnu navigáciu). Zároveň, aby nevznikali zbytočné nepresnosti, 
+    maximálna rýchlosť robota pri mapovacom móde sa zníži, nakoľko pri nižšej rýchlosti robota sú nepresnosti
+    menšie. Algoritmus je znázornený na obrázku pod týmto odstavcom.
 ![Optional Text](images/diagram_uloha3.png)
 
 ### Úloha 3 - spustenie ###
 
-    Pre spustenie mapovania použijeme jednoduchá tlačidlo "Map". Robot má vo svojom algoritme preddefinované
-    body, cez ktoré ma pomocou regulátora prejsť tak, aby zmapoval všetky časti priestoru. Po stlačení tohto
-    tlačidla sa robot prepne do mapovacieho módu, zníži svoju maximálnu rýchlosť, naplní zásobník žiadaných 
-    bodov preddefinovanými bodmi a žačne s polohovaním a mapovaním. Po dosiahnutí všetkých bodov v zásobníku
-    robot automaticky ukončí mapovací mód, nazad zvýši svoju maximálnu rýchlosť a automaticky uloží mapu
+    Pre spustenie mapovania použijeme tlačidlo "Map". Robot má vo svojom algoritme preddefinované
+    body, cez ktoré ma pomocou regulátora prejsť tak, aby zmapoval všetky časti priestoru. Po stlačení
+    tlačidla sa naplní zásobník žiadaných bodov preddefinovanými bodmi a žačne s polohovaním a mapovaním.
+    Po dosiahnutí všetkých bodov v zásobníku robot automaticky ukončí mapovací mód a automaticky uloží mapu
     prostredia do súboru "map.txt". 
 ![Optional Text](images/gui3.png)  
 
@@ -135,7 +134,7 @@ Všetky úlohy sú implementované do demo príkladu, ktorý sme dostali ako pod
 ### Úloha 4 - spustenie ###
 
     V prvom rade musíme mať v build priečniku mapu priestoru vo formáte .txt súboru (map.txt). Ak takú nemáme,
-    použijeme najskôr mód mapovania (úloha 2).
+    použijeme najskôr mód mapovania (úloha 3).
     Spustenie navigovania pomocou mapovania je rovnaké ako pri jednoduchej aj reaktívnej navigácii. Jediná zmena
     je prepnutie režimu navigácie na "Mapping nav". 
 ![Optional Text](images/gui4.png)
