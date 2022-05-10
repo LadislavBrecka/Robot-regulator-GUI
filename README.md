@@ -5,44 +5,26 @@ Všetky úlohy sú implementované do demo príkladu, ktorý sme dostali ako pod
 
 ## Úloha 1 - zadanie ##
 
-    Úlohou č.1 bolo implementovanie odometrie (lokalizácie). Z dát, ktoré máme k dispozícii 
-    vďaka snímačom na robote chceme určiť, kde sa práve robot nachádza (a pod akým uhlom).
-    Dáta, ktoré používame pre určenie polohy robota:
-        - prejdená vzdialenosť ľavého a pravého kolesa (hodnoty inkrementálnych enkodérov)
-        - prejdená vzdialenosť kolesa na jeden inkrement enkodéra
-        - polomer robota  
-    Na základe implementovania algoritmu úlohy č.1 dostaneme pozíciu robota ako:
-        - pozícia x, y
-        - natočenie robota φ
-    Pozícia je vztiahnutá k počiatočnej polohe robota pri jeho spustení. To znamená, že miesto, 
-    v ktorom sa robot spustí, je v súradnicovom systéme bod [0, 0], natočenie φ = 0 rad.
+    Prvou časťou úlohy bolo implementovanie odometrie (lokalizácie). Pozícia získaná z polohovania je 
+    vztiahnutá k počiatočnej polohe robota pri jeho spustení.
 
-    Druhou časťou prvej úlohy je polohovanie. Z predošlej časti máme x,y a φ, zadáme želanú polohu ako
+    Druhou časťou úlohy bolo polohovanie. Z predošlej časti máme x,y a φ, zadáme želanú polohu ako
     Xn a Yn a budeme očakávať, že robot sa do želanej polohy dostane. To zabezpečíme pomocou implementácie
-    P regulátora s rozbehom po rampe (aby sme zabránili prešmyku kolies pri rýchlom rozbehu a tým skreslili
-    odometriu - používame enkodéry na určenie polohy)
+    P regulátora s rozbehom po rampe, aby sme zabránili prešmyku kolies pri rýchlom rozbehu (čo by skres-
+    lilo odometriu).
 
 ### Úloha 1 - implementácia ###
 
     Princíp algoritmu odometrie funguje na základe rozdielu hodnôt enkodérov kolies v aktuálnom cykle
-    a v predošlom cykle. Tým pádom musíme poznať hodnotu enkodéra každého kolesa aj v predošlom cykle.
-    Dôležitým bodom je, že enkodér je typu beznamienkový short, ktorého maximálna hodnota je 65 535.
-    Musíme ošetriť pretečenie tohto parametre - ak dosiahne maximálnu hodnotu, znova začne od nuly.
-    Na základe ďalších vzorcov, ktoré máme v poskytnutých materiáloch, vieme vypočítať koordináty x, y a φ.
-    Tieto koordináty budeme využívať vo všetkých ďalších úlohách, ako aj v druhej časti 1. úlohy.
-
+    a v predošlom cykle. Dôležitým bodom je, že enkodér je typu beznamienkový short, ktorého maximálna
+    hodnota je 65 535. Musíme ošetriť pretečenie tohto parametra - ak dosiahne maximálnu hodnotu, znova
+    začne od nuly. Na základe ďalších vzorcov, ktoré máme v poskytnutých materiáloch, vieme vypočítať 
+    koordináty x, y a φ. Uhol natočenia robota nepoužívam z gyra, ale rátam vlastným výpočtom.
     Druhá úloha sa týkala polohovania. Polohovanie som zabezpečil pomocou P regulátora translačnej a 
-    rotačnej rýchlosti. Ak si používateľ zvolí želanú polohu a stlačí tlačidlo Navigate, každý cyklus
-    programu sa vyhodnotí odchýlka od želanej polohy. Následne sa v prvom kroku reguluje natočenie -
-    robot sa musí natočiť smerom k cieľu, točí sa, dokým nedosiahne hodnotu mŕtveho pásma PA_1. 
-    Následne, po ukončení regulácie rotácie, sa reguluje translačný pohyb - robot sa rozbehne smerom k 
-    prekážke. Rozbieha sa po rampe, t.j želanú rýchlosť nedosiahne ihneď, ale po určitom čase lineárne.
-    Robot sa dopredne pohybuje až do momentu, kedy výchylka natočenia robota od cieľa nepresiahne povolenú
-    hranicu PA_2. V tomto momente sa prerušuje regulácia doprednej rýchlosti a začína sa opäť regulácia rotácie.
-    Tento kolobeh sa opakuje až do momentu, pokým nie sú splnené podmienky dosiahnutia cieľa - povolená
-    odchýlka od cieľa PD. Zásobník, do ktorého pridávame želanú polohu, je realizovaný ako FIFO zásobník.
-    Môžeme teda súčasne zadať naraz po sebe viacero želaných bodov a robot sa bude polohovať postupne ku každému
-    v poradí, akom boli pridané. Pri FIFO zásobníku do znamená, first in, first out.
+    rotačnej rýchlosti. Algoritmus je znázornený na obrázku pod týmto odstavcom. Zásobník, do ktorého
+    pridávame želanú polohu, je realizovaný ako FIFO zásobník. Môžeme teda súčasne zadať naraz po sebe 
+    viacero želaných bodov a robot sa bude polohovať postupne ku každému v poradí, akom boli pridané.
+![Optional Text](images/diagram_uloha1.png)
 
 ### Úloha 1 - spustenie ###
 
@@ -61,14 +43,13 @@ Všetky úlohy sú implementované do demo príkladu, ktorý sme dostali ako pod
 ### Úloha 2 - implementácia ###
 
     Prvou časťou riešenia problému je nájsť koncové body prekážky. To som uskutočnil pomocou Euklidovskej
-    vzdialenosti a dát z lidaru. Po zadaní želaného bodu, zakliknutí možnosti "Reactive Nav" a stlačení
-    tlačidla Navigate robot vyhodnotí, či dokáže ísť priamo na prekážku, alebo nie. Ak nedokáže, vypočíta
-    odchýlku uhla od robota od natočenia k cieľu. Následne na základe tejto uhlovej odchýlky vypočíta 
-    percento, v ktorej časti lidarových dát sa nachádza trajektória k cieľu. T.j ak rozdiel uhla medzi
-    cieľom a robotom je 45°, percento bude 12,5 (45*100 / 360 = 12,5 ). Toto percento prepočítame na 
-    index lidarových dát - tento index rozdelí lidarové dáta na dve časti - ľavá časť (od natočenia k
+    vzdialenosti a dát z lidaru. Robot po spustení navigácie zistí, či dokáže ísť priamo na prekážku,
+    alebo nie. Ak nedokáže, vypočíta odchýlku uhla od robota od natočenia k cieľu. Následne na základe 
+    tejto uhlovej odchýlky vypočíta percento, v ktorej časti lidarových dát sa nachádza trajektória k cieľu. 
+    T.j ak rozdiel uhla medzi cieľom a robotom je 45°, percento bude 12,5 (45*100 / 360 = 12,5 ). Toto percento
+    prepočítame na index lidarových dát - tento index rozdelí lidarové dáta na dve časti - ľavá časť (od natočenia k
     cieľu doĺava) a pravá časť (od natočenia k cieľu doprava). Ľavá časť iteruje lidarové body od indexu
-    inkrementálne po koniec poľa. Pravá časť iteruje od indexu dekrementálne po začiatok poľa. 
+    inkrementálne po koniec poľa. Pravá časť iteruje od indexu dekrementálne po začiatok poľa. (1. obrázok)
     V týchto iteráciach hľadáme bod, v ktorom sa skokovo zmení vzdialenosť. Ak to nastane, vieme, že sme
     detegovali hranu prekážky. Nevieme však, či naša najbližšia hrana je prvok 'k' alebo 'k-1' (rep. k+1)
     pri iterácii pravou stranou. Preto označíme oba body za prekážku a v neskoršej fáze vyberieme ten bod,
@@ -76,7 +57,9 @@ Všetky úlohy sú implementované do demo príkladu, ktorý sme dostali ako pod
     pri tom goniometrické vzťahy. Keď sa robot dostane do tohto bodu, opakuje sa celý algoritmus opísaný 
     vyššie. Ak je už možné dosiahnuť cieľ priamo, robot automaticky prepne režim hľadania prekážky do 
     režimu priamej navigácie. Či je bod dosiahnuteľný alebo nie, zisťujem pomocou algoritmu zóny, ktorý 
-    máme znázornený v učebných dokumentoch. 
+    máme znázornený v učebných dokumentoch. Algoritmus je znázornený na 2. obrázku pod týmto odstavcom.
+![Optional Text](images/obrazok_uloha2.png)
+![Optional Text](images/diagram_uloha2.png)
 
 ### Úloha 2 - spustenie ###
 
@@ -108,7 +91,8 @@ Všetky úlohy sú implementované do demo príkladu, ktorý sme dostali ako pod
     Použijeme jednoduché polohovanie k tomu, aby sa robot dostal ku každému bodu
     (body som rozvrhol tak, že robot nemusí obchádzať prekážky a teda používať reaktívnu navigáciu). Zároveň,
     aby nevznikali zbytočné nepresnosti, maximálna rýchlosť robota pri mapovacom móde sa zníži, nakoľko pri
-    nižšej rýchlosti robota sú nepresnosti menšie.
+    nižšej rýchlosti robota sú nepresnosti menšie. Algoritmus je znázornený na obrázku pod týmto odstavcom.
+![Optional Text](images/diagram_uloha3.png)
 
 ### Úloha 3 - spustenie ###
 
@@ -144,7 +128,9 @@ Všetky úlohy sú implementované do demo príkladu, ktorý sme dostali ako pod
     do ktorého smeru sused aktuálnej bunky má najmenšiu vzdialenosť a rovnako si držíme predošlého suseda.
     Ak sa sused zmení (t.j. zmení sa smer z vertikálneho na horizontálny alebo opačne) vieme, že je to zlomový bod.
     Pre tento bod si prepočítame súradnice do súradného systému sveta a vložíme tento bod do zásobníka. Takto
-    vložíme do zásobníka všetky body, kde dochádza k zmene smeru, až pokým sa nedostaneme k cieľu.
+    vložíme do zásobníka všetky body, kde dochádza k zmene smeru, až pokým sa nedostaneme k cieľu. Algoritmus je 
+    znázornený na obrázku pod týmto odstavcom.
+![Optional Text](images/diagram_uloha4.png)
 
 ### Úloha 4 - spustenie ###
 
